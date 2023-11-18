@@ -2,7 +2,7 @@ module Libraries.Text.Distance.Levenshtein
 
 import Data.String
 import Libraries.Data.IOMatrix
-import Libraries.Data.List.Extra
+import Libraries.Data.List.Extra as Lib
 
 %default total
 
@@ -15,7 +15,7 @@ spec a b = loop (fastUnpack a) (fastUnpack b) where
   loop xs [] = length xs -- insertions
   loop (x :: xs) (y :: ys)
     = if x == y then loop xs ys -- match
-      else 1 + minimum [ loop (x :: xs) ys -- insert y
+      else 1 + Lib.minimum [ loop (x :: xs) ys -- insert y
                        , loop xs (y :: ys) -- delete x
                        , loop xs ys        -- substitute y for x
                        ]
@@ -58,7 +58,7 @@ compute a b = do
                     if isAlpha c && isAlpha d then 1 else
                     if isDigit c && isDigit d then 1 else 2
       write mat i j $
-        minimum [ 1    + !(get i (j-1))     -- insert y
+        Lib.minimum [ 1    + !(get i (j-1))     -- insert y
                 , 1    + !(get (i-1) j)     -- delete x
                 , cost + !(get (i-1) (j-1)) -- equal or substitute y for x
                 ]
