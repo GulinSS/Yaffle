@@ -216,7 +216,7 @@ unelabTy' umode nest env (Case fc ty c sc scty alts)
     = do (sc', _) <- unelabTy' umode nest env sc
          (scty', _) <- unelabTy' umode nest env scty
          alts' <- traverse unelabAlt alts
-         pure (ICase fc sc' scty' alts', VErased fc Placeholder)
+         pure (ICase fc [] sc' scty' alts', VErased fc Placeholder)
   where
     unelabScope : {vars : _} ->
                   FC -> Name -> SnocList (Maybe Name, Name) ->

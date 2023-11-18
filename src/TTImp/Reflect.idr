@@ -117,12 +117,13 @@ mutual
                           val' <- reify defs !(expand val)
                           sc' <- reify defs !(expand sc)
                           pure (ILet fc' lhsFC' c' n' ty' val' sc')
-               (UN (Basic "ICase"), [fc, sc, ty, cs])
+               (UN (Basic "ICase"), [fc, opts, sc, ty, cs])
                     => do fc' <- reify defs !(expand fc)
+                          opts' <- reify defs !(expand opts)
                           sc' <- reify defs !(expand sc)
                           ty' <- reify defs !(expand ty)
                           cs' <- reify defs !(expand cs)
-                          pure (ICase fc' sc' ty' cs')
+                          pure (ICase fc' opts' sc' ty' cs')
                (UN (Basic "ILocal"), [fc, ds, sc])
                     => do fc' <- reify defs !(expand fc)
                           ds' <- reify defs !(expand ds)
@@ -499,12 +500,13 @@ mutual
              aval' <- reflect fc defs lhs env aval
              sc' <- reflect fc defs lhs env sc
              appConTop fc defs (reflectionttimp "ILet") [fc', lhsFC', c', n', aty', aval', sc']
-    reflect fc defs lhs env (ICase tfc sc ty cs)
+    reflect fc defs lhs env (ICase tfc opts sc ty cs)
         = do fc' <- reflect fc defs lhs env tfc
+             opts' <- reflect fc defs lhs env opts
              sc' <- reflect fc defs lhs env sc
              ty' <- reflect fc defs lhs env ty
              cs' <- reflect fc defs lhs env cs
-             appConTop fc defs (reflectionttimp "ICase") [fc', sc', ty', cs']
+             appConTop fc defs (reflectionttimp "ICase") [fc', opts', sc', ty', cs']
     reflect fc defs lhs env (ILocal tfc ds sc)
         = do fc' <- reflect fc defs lhs env tfc
              ds' <- reflect fc defs lhs env ds
