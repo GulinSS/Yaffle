@@ -10,6 +10,7 @@ import Core.TT
 
 import Data.Nat
 import Data.Vect
+import Libraries.Data.WithDefault
 
 mkFn : {done : _} ->
        (i : Int) ->
@@ -35,7 +36,7 @@ addPrim : Ref Ctxt Defs =>
 addPrim p
     = do let fndef = mkPrim (arity p) (fn p)
          let primdef = newDef EmptyFC (opName (fn p)) RigW [<]
-                              (type p) Public
+                              (type p) (specified Public)
                               (Function (MkFnInfo NotHole False False)
                                         fndef fndef Nothing)
          ignore $ addDef (opName (fn p)) primdef

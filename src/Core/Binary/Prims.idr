@@ -12,6 +12,7 @@ import Data.Vect
 import Libraries.Data.PosMap
 import Libraries.Data.IntMap
 import Libraries.Data.StringMap
+import Libraries.Data.WithDefault
 import Libraries.System.File
 import Libraries.System.File.Buffer
 
@@ -432,6 +433,21 @@ TTC a => TTC (Maybe a) where
             1 => do val <- fromBuf
                     pure (Just val)
             _ => corrupt "Maybe"
+
+export
+TTC a => TTC (WithDefault a def) where
+  toBuf
+     = onWithDefault
+         (tag 0)
+         (\v => do tag 1
+                   toBuf v)
+
+  fromBuf
+     = case !getTag of
+            0 => pure defaulted
+            1 => do val <- fromBuf
+                    pure (specified val)
+            _ => corrupt "WithDefault"
 
 export
 (TTC a, TTC b) => TTC (Either a b) where

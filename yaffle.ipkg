@@ -277,6 +277,7 @@ modules
     Libraries.Data.StringTrie,
     Libraries.Data.UserNameMap,
     Libraries.Data.Version,
+    Libraries.Data.WithDefault,
 
     Libraries.System.File,
     Libraries.System.File.Buffer,

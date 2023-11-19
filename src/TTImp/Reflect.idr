@@ -8,6 +8,8 @@ import Core.TT
 
 import TTImp.TTImp
 
+import Libraries.Data.WithDefault
+
 %default covering
 
 export

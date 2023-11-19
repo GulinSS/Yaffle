@@ -9,6 +9,8 @@ import Core.Context
 import Libraries.Utils.Scheme
 import System.Info
 
+import Libraries.Data.WithDefault
+
 -- Compilation for the Scheme-based evaluator. We compile top level definitions
 -- to Scheme definitions. This is Just-In-Time, rather than compiled and
 -- exported, largely because the majority of definitions are either not
@@ -70,7 +72,7 @@ parameters {auto c : Ref Ctxt Defs}
          -- Check whether the name is available for reduction in evalTC mode
          let redok = reducibleInAny (currentNS defs :: nestedNS defs)
                                     (fullname def)
-                                    (visibility def)
+                                    (collapseDefault $ visibility def)
 
          -- 'n' is used in compileBody for generating names for readback,
          -- and reading back resolved names is quicker because it's just

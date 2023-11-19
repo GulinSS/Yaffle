@@ -12,8 +12,9 @@ import Core.TT
 import TTImp.Elab.Check
 import TTImp.TTImp
 
-import Libraries.Data.NameMap
 import Data.List
+import Libraries.Data.NameMap
+import Libraries.Data.WithDefault
 
 %default covering
 
@@ -31,7 +32,7 @@ localHelper {vars} nest env nestdecls_in func
          let f = defining est
          defs <- get Ctxt
          gdef <- lookupCtxtExact (Resolved (defining est)) (gamma defs)
-         let vis  = maybe Public visibility gdef
+         let vis  = maybe Public (collapseDefault . visibility) gdef
          let mult = maybe linear GlobalDef.multiplicity gdef
 
          -- If the parent function is public, the nested definitions need
@@ -146,8 +147,8 @@ localHelper {vars} nest env nestdecls_in func
 
     setPublic : ImpDecl -> ImpDecl
     setPublic (IClaim fc c _ opts ty) = IClaim fc c Public opts ty
-    setPublic (IData fc _ mbt d) = IData fc Public mbt d
-    setPublic (IRecord fc c _ mbt r) = IRecord fc c Public mbt r
+    setPublic (IData fc _ mbt d) = IData fc (specified Public) mbt d
+    setPublic (IRecord fc c _ mbt r) = IRecord fc c (specified Public) mbt r
     setPublic (IParameters fc ps decls)
         = IParameters fc ps (map setPublic decls)
     setPublic (INamespace fc ps decls)

@@ -6,6 +6,7 @@ import Core.Evaluate
 
 import Data.List
 import Data.Maybe
+import Libraries.Data.WithDefault
 
 -- If a name appears more than once in an argument list, only the first is
 -- considered a parameter
@@ -97,7 +98,7 @@ addData vars vis tidx (MkData (MkCon dfc tyn arity tycon) datacons)
          log "declare.data.parameters" 20 $
             "Positions of parameters for datatype" ++ show tyn ++
             ": [" ++ showSep ", " (map show paramPositions) ++ "]"
-         let tydef = newDef dfc tyn top vars tycon vis
+         let tydef = newDef dfc tyn top vars tycon (specified vis)
                             (TCon (MkTyConInfo paramPositions allPos []
                                                (map name datacons) Nothing
                                                False False) arity)
@@ -125,7 +126,7 @@ addData vars vis tidx (MkData (MkCon dfc tyn arity tycon) datacons)
     addDataConstructors tag [] gam = pure gam
     addDataConstructors tag (MkCon fc n a ty :: cs) gam
         = do qs <- readQs !(expand !(nf [<] ty))
-             let condef = newDef fc n top vars ty (conVisibility vis)
+             let condef = newDef fc n top vars ty (specified $ conVisibility vis)
                                  (DCon (defaultDataConInfo qs) tag a)
              -- Check 'n' is undefined
              Nothing <- lookupCtxtExact n gam

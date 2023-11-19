@@ -11,6 +11,7 @@ import Core.TT
 import Core.TTC
 
 import Data.List1
+import Libraries.Data.WithDefault
 
 -- Information about names in nested blocks
 public export
@@ -292,14 +293,15 @@ public export
 data ImpDecl' : Type -> Type where
      IClaim : FC -> RigCount -> Visibility -> List (FnOpt' nm) ->
               ImpTy' nm -> ImpDecl' nm
-     IData : FC -> Visibility -> Maybe TotalReq -> ImpData' nm -> ImpDecl' nm
+     IData : FC -> WithDefault Visibility Private -> Maybe TotalReq -> ImpData' nm -> ImpDecl' nm
      IDef : FC -> Name -> List (ImpClause' nm) -> ImpDecl' nm
      IParameters : FC ->
                    List (ImpParameter' nm) ->
                    List (ImpDecl' nm) -> ImpDecl' nm
      IRecord : FC ->
                Maybe String -> -- nested namespace
-               Visibility -> Maybe TotalReq ->
+               WithDefault Visibility Private ->
+               Maybe TotalReq ->
                ImpRecord' nm -> ImpDecl' nm
      IFail : FC -> Maybe String -> List (ImpDecl' nm) -> ImpDecl' nm
      INamespace : FC -> Namespace -> List (ImpDecl' nm) -> ImpDecl' nm

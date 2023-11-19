@@ -24,6 +24,7 @@ import Libraries.Data.IOArray
 import Libraries.Data.NameMap
 import Libraries.Data.StringMap
 import Libraries.Data.UserNameMap
+import Libraries.Data.WithDefault
 
 import Libraries.Utils.Scheme
 
@@ -348,7 +349,7 @@ lookupDefTyExact = lookupExactBy (\g => (definition g, type g))
 
 export
 newDef : FC -> Name -> RigCount -> SnocList Name ->
-         Term [<] -> Visibility -> Def -> GlobalDef
+         Term [<] -> WithDefault Visibility Private -> Def -> GlobalDef
 newDef fc n rig vars ty vis def
     = MkGlobalDef
         { location = fc
@@ -899,6 +900,7 @@ HasNames Warning where
   full gam (UnreachableClause fc rho s) = UnreachableClause fc <$> full gam rho <*> full gam s
   full gam (ShadowingGlobalDefs fc xs)
     = ShadowingGlobalDefs fc <$> traverseList1 (traversePair (traverseList1 (full gam))) xs
+  full gam (IncompatibleVisibility fc x y n) = IncompatibleVisibility fc x y <$> full gam n
   full gam w@(ShadowingLocalBindings _ _) = pure w
   full gam (Deprecated x y) = Deprecated x <$> traverseOpt (traversePair (full gam)) y
   full gam (GenericWarn x) = pure (GenericWarn x)
@@ -907,6 +909,7 @@ HasNames Warning where
   resolved gam (UnreachableClause fc rho s) = UnreachableClause fc <$> resolved gam rho <*> resolved gam s
   resolved gam (ShadowingGlobalDefs fc xs)
     = ShadowingGlobalDefs fc <$> traverseList1 (traversePair (traverseList1 (resolved gam))) xs
+  resolved gam (IncompatibleVisibility fc x y n) = IncompatibleVisibility fc x y <$> resolved gam n
   resolved gam w@(ShadowingLocalBindings _ _) = pure w
   resolved gam (Deprecated x y) = Deprecated x <$> traverseOpt (traversePair (resolved gam)) y
   resolved gam (GenericWarn x) = pure (GenericWarn x)

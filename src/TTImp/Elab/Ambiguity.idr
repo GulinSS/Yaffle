@@ -19,6 +19,7 @@ import Data.String
 import Data.Vect
 
 import Libraries.Data.UserNameMap
+import Libraries.Data.WithDefault
 
 %default covering
 
@@ -78,7 +79,7 @@ expandAmbigName mode nest env orig args (IVar fc x) exp
                  | _ => pure True
              if !(isVisible ns)
                 then pure $ visibleInAny (!getNS :: !getNestedNS) (NS ns x)
-                                         (visibility def)
+                                         (collapseDefault $ visibility def)
                 else pure False
 
     -- If there's multiple alternatives and all else fails, resort to using

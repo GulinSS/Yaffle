@@ -168,6 +168,13 @@ pwarningRaw (ShadowingGlobalDefs fc ns)
                         :: reflow "is shadowing"
                         :: punctuate comma (map pretty0 (forget ns))
 
+pwarningRaw (IncompatibleVisibility fc vx vy n)
+    = pure $ warning (code (pretty0 (sugarName n))
+        <++> reflow "has been forward-declared with"
+        <++> keyword (pretty0 vx) <++> reflow "visibility, cannot change to"
+        <++> keyword (pretty0 vy) <+> reflow ". This will be an error in a later release.")
+        <+> line <+> !(ploc fc)
+
 pwarningRaw (ShadowingLocalBindings fc ns)
     = pure $ vcat
     [ reflow "You may be unintentionally shadowing the following local bindings:"

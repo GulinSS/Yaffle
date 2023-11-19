@@ -25,6 +25,7 @@ import Data.List1
 import Data.SnocList
 import Libraries.Data.IntMap
 import Libraries.Data.NameMap
+import Libraries.Data.WithDefault
 import Data.String as String
 
 import System.Directory
@@ -148,7 +149,7 @@ getMinimalDef (Coded bin)
          name <- fromBuf
          let def
              = MkGlobalDef loc name (Erased loc Placeholder) [] [] [] [] mul
-                           [<] Public (MkTotality Unchecked IsCovering)
+                           [<] (specified Public) (MkTotality Unchecked IsCovering)
                            [] Nothing refsR False
                            None cdef Nothing [] Nothing
          pure (def, Just bin)

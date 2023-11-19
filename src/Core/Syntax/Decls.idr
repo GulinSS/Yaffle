@@ -9,6 +9,8 @@ import Core.Syntax.Raw
 import Core.Check.Typecheck
 import Core.Unify
 
+import Libraries.Data.WithDefault
+
 parameters {auto c : Ref Ctxt Defs} {auto u : Ref UST UState}
 
   readQs : NF [<] -> Core (List RigCount)
@@ -26,7 +28,7 @@ parameters {auto c : Ref Ctxt Defs} {auto u : Ref UST UState}
            arity <- getArity [<] ty
            qs <- readQs tnf
            let dinf = MkDataConInfo qs Nothing
-           idx <- addDef n (newDef fc n linear [<] ty Public (DCon dinf tag arity))
+           idx <- addDef n (newDef fc n linear [<] ty (specified Public) (DCon dinf tag arity))
            pure (Resolved idx)
     where
       checkIsTy : NF [<] -> Core ()
@@ -45,12 +47,12 @@ parameters {auto c : Ref Ctxt Defs} {auto u : Ref UST UState}
            -- check the data constructors
            arity <- getArity [<] ty
            let tinf = MkTyConInfo [] [] [] [] Nothing False False
-           ignore $ addDef n (newDef fc n top [<] ty Public (TCon tinf arity))
+           ignore $ addDef n (newDef fc n top [<] ty (specified Public) (TCon tinf arity))
            cnames <- traverse (processDataCon fc n) (mkTags 0 cons)
            -- TODO: Deal with parameters and universe constraints
            let tinf = MkTyConInfo [] [] [] cnames Nothing False False
            -- Re-add with the full information
-           ignore $ addDef n (newDef fc n top [<] ty Public (TCon tinf arity))
+           ignore $ addDef n (newDef fc n top [<] ty (specified Public) (TCon tinf arity))
            traverse_ (\x => addHintFor fc n x True False) cnames
     where
       -- I wanted to zip a Stream with a List...
@@ -62,7 +64,7 @@ parameters {auto c : Ref Ctxt Defs} {auto u : Ref UST UState}
   processTyDecl fc c n rty
       = do checkUndefined fc n
            ty <- check erased [<] rty (topType fc)
-           ignore $ addDef n (newDef fc n c [<] ty Public None)
+           ignore $ addDef n (newDef fc n c [<] ty (specified Public) None)
 
   processDef : FC -> Name -> RawC -> Core ()
   processDef fc n rtm

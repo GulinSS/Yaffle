@@ -8,6 +8,8 @@ import Core.TT
 import Data.SnocList
 import Data.Vect
 
+import Libraries.Data.WithDefault
+
 public export
 data Form = Glue | Normal
 
@@ -124,7 +126,7 @@ expand' cases v@(VApp fc nt n sp val)
     = do vis <- getVisibility fc n
          defs <- get Ctxt
          let ns = currentNS defs :: nestedNS defs
-         if reducibleInAny ns n vis
+         if reducibleInAny ns n $ collapseDefault vis
             then do
                Just val' <- val
                     | Nothing => pure (believe_me v)

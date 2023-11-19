@@ -14,6 +14,7 @@ import Core.Evaluate.Value
 
 import Data.SnocList
 import Data.Vect
+import Libraries.Data.WithDefault
 
 data QVar : Type where
 
@@ -44,7 +45,7 @@ parameters {auto c : Ref Ctxt Defs}
   tryReduce BlockApp _ _ _ = pure Nothing
   tryReduce (Reduce ns) fc n val
       = do v <- getVisibility fc n
-           if reducibleInAny ns n v
+           if reducibleInAny ns n $ collapseDefault v
               then val
               else pure Nothing
 

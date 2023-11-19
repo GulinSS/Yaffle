@@ -160,6 +160,7 @@ getWarningLoc : Warning -> Maybe FC
 getWarningLoc (ParserWarning fc _) = Just fc
 getWarningLoc (UnreachableClause fc _ _) = Just fc
 getWarningLoc (ShadowingGlobalDefs fc _) = Just fc
+getWarningLoc (IncompatibleVisibility fc _ _ _) = Just fc
 getWarningLoc (ShadowingLocalBindings fc _) = Just fc
 getWarningLoc (Deprecated _ fcAndName) = fst <$> fcAndName
 getWarningLoc (GenericWarn _) = Nothing
@@ -247,6 +248,7 @@ killWarningLoc : Warning -> Warning
 killWarningLoc (ParserWarning fc x) = ParserWarning emptyFC x
 killWarningLoc (UnreachableClause fc x y) = UnreachableClause emptyFC x y
 killWarningLoc (ShadowingGlobalDefs fc xs) = ShadowingGlobalDefs emptyFC xs
+killWarningLoc (IncompatibleVisibility fc x y z) = IncompatibleVisibility emptyFC x y z
 killWarningLoc (ShadowingLocalBindings fc xs) =
     ShadowingLocalBindings emptyFC $ (\(n, _, _) => (n, emptyFC, emptyFC)) <$> xs
 killWarningLoc (Deprecated x y) = Deprecated x (map ((emptyFC,) . snd) y)

@@ -21,6 +21,7 @@ import Data.DPair
 import Data.List
 import Data.SnocList
 import Libraries.Data.NameMap
+import Libraries.Data.WithDefault
 
 %default covering
 
@@ -394,9 +395,9 @@ processData : {vars : _} ->
               {auto u : Ref UST UState} ->
               List ElabOpt -> NestedNames vars ->
               Env Term vars -> FC ->
-              Visibility -> Maybe TotalReq ->
+              WithDefault Visibility Private -> Maybe TotalReq ->
               ImpData -> Core ()
-processData {vars} eopts nest env fc vis mbtot (MkImpLater dfc n_in ty_raw)
+processData {vars} eopts nest env fc def_vis mbtot (MkImpLater dfc n_in ty_raw)
     = do n <- inCurrentNS n_in
          ty_raw <- bindTypeNames fc [] (cast vars) ty_raw
 
@@ -419,7 +420,7 @@ processData {vars} eopts nest env fc vis mbtot (MkImpLater dfc n_in ty_raw)
 
          -- Add the type constructor as a placeholder
          let tinf = MkTyConInfo [] [] [] [] Nothing False False
-         tidx <- addDef n (newDef fc n linear vars fullty vis
+         tidx <- addDef n (newDef fc n linear vars fullty def_vis
                           (TCon tinf arity))
          addMutData (Resolved tidx)
          defs <- get Ctxt
@@ -429,13 +430,13 @@ processData {vars} eopts nest env fc vis mbtot (MkImpLater dfc n_in ty_raw)
          addToSave n
          log "declare.data" 10 $ "Saving from " ++ show n ++ ": " ++ show (keys (getMetas ty))
 
-         case vis of
+         case collapseDefault def_vis of
               Private => pure ()
               _ => do addHashWithNames n
                       addHashWithNames fullty
                       log "module.hash" 15 "Adding hash for data declaration with name \{show n}"
 
-processData {vars} eopts nest env fc vis mbtot (MkImpData dfc n_in mty_raw opts cons_raw)
+processData {vars} eopts nest env fc def_vis mbtot (MkImpData dfc n_in mty_raw opts cons_raw)
     = do n <- inCurrentNS n_in
 
          log "declare.data" 1 $ "Processing " ++ show n
@@ -458,21 +459,27 @@ processData {vars} eopts nest env fc vis mbtot (MkImpData dfc n_in mty_raw opts 
          let mfullty = map snd mmetasfullty
 
          -- If n exists, check it's the same type as we have here, and is
-         -- a data constructor.
+         -- a type constructor, and has either the same visibility or we
+         -- don't define one.
          -- When looking up, note the data types which were undefined at the
          -- point of declaration.
          ndefm <- lookupCtxtExact n (gamma defs)
-         (mw, fullty) <- the (Core (List Name, ClosedTerm)) $ case ndefm of
+         (mw, vis, fullty) <- the (Core (List Name, Visibility, ClosedTerm)) $ case ndefm of
                   Nothing => case mfullty of
                     Nothing => throw (GenericMsg fc "Missing telescope for data definition \{show n_in}")
-                    Just fullty => pure ([], fullty)
-                  Just ndef =>
+                    Just fullty => pure ([], collapseDefault def_vis, fullty)
+                  Just ndef => do
+                    vis <- the (Core Visibility) $ case collapseDefaults ndef.visibility def_vis of
+                                                        Right finalVis => pure finalVis
+                                                        Left (oldVis, newVis) =>
+                                                            do recordWarning (IncompatibleVisibility fc oldVis newVis n)
+                                                               pure (max oldVis newVis)
                     case definition ndef of
                       TCon ti _ => case mfullty of
-                        Nothing => pure (mutWith ti, type ndef)
+                        Nothing => pure (mutWith ti, vis, type ndef)
                         Just fullty =>
                             do ok <- convert [<] fullty (type ndef)
-                               if ok then pure (mutWith ti, fullty)
+                               if ok then pure (mutWith ti, vis, fullty)
                                      else do logTermNF "declare.data" 1 "Previous" [<] (type ndef)
                                              logTermNF "declare.data" 1 "Now" [<] fullty
                                              throw (AlreadyDefined fc n)
@@ -485,9 +492,9 @@ processData {vars} eopts nest env fc vis mbtot (MkImpData dfc n_in mty_raw opts 
          -- Add the type constructor as a placeholder while checking
          -- data constructors
          let tinf = MkTyConInfo [] [] [] [] Nothing False False
-         tidx <- addDef n (newDef fc n linear vars fullty vis
+         tidx <- addDef n (newDef fc n linear vars fullty def_vis
                           (TCon tinf arity))
-         case vis of
+         case collapseDefault def_vis of
               Private => pure ()
               _ => do addHashWithNames n
                       addHashWithNames fullty

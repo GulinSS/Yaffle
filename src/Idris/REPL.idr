@@ -70,6 +70,7 @@ import Data.String
 import Libraries.Data.List.Extra
 import Libraries.Data.String.Extra
 import Libraries.Data.Tap
+import Libraries.Data.WithDefault
 import Libraries.Text.PrettyPrint.Prettyprinter.Util
 import Libraries.Utils.Path
 import Libraries.System.Directory.Tree
@@ -889,7 +890,7 @@ process (Eval itm)
                  opts <- get ROpts
                  evalResultName <- DN "it" <$> genName "evalResult"
                  ignore $ addDef evalResultName
-                   $ newDef replFC evalResultName top [<] ty Private
+                   $ newDef replFC evalResultName top [<] ty defaulted
                    $ Function defaultFI ntm ntm Nothing
                  addToSave evalResultName
                  put ROpts ({ evalResultName := Just evalResultName } opts)
@@ -980,7 +981,7 @@ process (TypeSearch searchTerm)
               defs    <- traverse (flip lookupCtxtExact ctxt) names
               let defs = flip mapMaybe defs $ \ md =>
                              do d <- md
-                                guard (visibleIn curr (fullname d) (visibility d))
+                                guard (visibleIn curr (fullname d) (collapseDefault $ visibility d))
                                 guard (isJust $ userNameRoot (fullname d))
                                 pure d
               allDefs <- traverse (resolved ctxt) defs

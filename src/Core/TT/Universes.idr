@@ -1,6 +1,7 @@
 module Core.TT.Universes
 
 import Core.Context
+import Libraries.Data.WithDefault
 
 parameters {auto c : Ref Ctxt Defs}
   export
@@ -16,7 +17,7 @@ parameters {auto c : Ref Ctxt Defs}
       = do defs <- get Ctxt
            let n = MN "u" (nextUVar defs)
            put Ctxt ({nextUVar $= (1+) } defs)
-           idx <- addDef n (newDef fc n erased [<] (Erased fc Placeholder) Public None)
+           idx <- addDef n (newDef fc n erased [<] (Erased fc Placeholder) (specified Public) None)
            pure (Resolved idx)
 
   -- Check constraints are consistent and instantiate names as universe levels

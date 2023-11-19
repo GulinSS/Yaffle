@@ -20,6 +20,7 @@ import Libraries.Data.IntMap
 import Data.List
 import Libraries.Data.NameMap
 import Libraries.Data.UserNameMap
+import Libraries.Data.WithDefault
 
 public export
 data ElabMode = InType | InLHS RigCount | InExpr | InTransform
@@ -401,7 +402,7 @@ uniVar : {auto c : Ref Ctxt Defs} ->
          FC -> Core Name
 uniVar fc
     = do n <- genName "u"
-         idx <- addDef n (newDef fc n erased [<] (Erased fc Placeholder) Public None)
+         idx <- addDef n (newDef fc n erased [<] (Erased fc Placeholder) (specified Public) None)
          pure (Resolved idx)
 
 export

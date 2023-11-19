@@ -32,6 +32,7 @@ import Data.List
 import Data.SnocList
 
 import Libraries.Data.Tap
+import Libraries.Data.WithDefault
 
 %default covering
 
@@ -282,7 +283,7 @@ searchName fc rigc opts hints env target topty (n, ndef)
     = do defs <- get Ctxt
          checkTimer
          let True = visibleInAny (!getNS :: !getNestedNS)
-                                 (fullname ndef) (visibility ndef)
+                                 (fullname ndef) (collapseDefault $ visibility ndef)
              | _ => noResult
          let ty = type ndef
          let True = usableName (fullname ndef)
@@ -363,7 +364,7 @@ searchNames fc rig opts hints env ty topty (n :: ns)
     visible gam nspace n
         = do Just def <- lookupCtxtExact n gam
                   | Nothing => pure Nothing
-             if visibleInAny nspace n (visibility def)
+             if visibleInAny nspace n (collapseDefault $ visibility def)
                 then pure (Just (n, def))
                 else pure Nothing
 

@@ -16,6 +16,7 @@ import Data.Nat
 
 import Libraries.Data.NameMap
 import Libraries.Data.UserNameMap
+import Libraries.Data.WithDefault
 import Libraries.Text.Distance.Levenshtein
 import Libraries.Text.PrettyPrint.Prettyprinter
 
@@ -24,11 +25,11 @@ import System.Directory
 
 export
 getVisibility : {auto c : Ref Ctxt Defs} ->
-                FC -> Name -> Core Visibility
+                FC -> Name -> Core (WithDefault Visibility Private)
 getVisibility fc n
     = do defs <- get Ctxt
          Just def <- lookupCtxtExact n (gamma defs)
-              | Nothing => pure Private -- throw (UndefinedName fc n)
+              | Nothing => pure defaulted -- throw (UndefinedName fc n)
          pure $ visibility def
 
 export
@@ -57,7 +58,7 @@ getSimilarNames nm = case show <$> userNameRoot nm of
                    | False => pure Nothing
                Just def <- lookupCtxtExact nm (gamma defs)
                    | Nothing => pure Nothing -- should be impossible
-               pure (Just (visibility def, dist))
+               pure (Just (collapseDefault $ visibility def, dist))
        kept <- NameMap.mapMaybeM @{CORE} test (resolvedAs (gamma defs))
        pure $ Just (str, toList kept)
 
@@ -133,7 +134,7 @@ parameters {auto c : Ref Ctxt Defs}
   export
   ambiguousName : FC -> Name -> List Name -> Core a
   ambiguousName fc n ns = do
-    ns <- filterM (\x => pure $ !(getVisibility fc x) /= Private) ns
+    ns <- filterM (\x => pure $ !(collapseDefault <$> getVisibility fc x) /= Private) ns
     case ns of
       [] =>         undefinedName fc n
       ns => throw $ AmbiguousName fc ns
@@ -708,7 +709,7 @@ parameters {auto c : Ref Ctxt Defs}
       = do defs <- get Ctxt
            Just def <- lookupCtxtExact n (gamma defs)
                 | Nothing => undefinedName fc n
-           ignore $ addDef n ({ visibility := vis } def)
+           ignore $ addDef n ({ visibility := specified vis } def)
 
 export
 getWorkingDir : CoreFile String

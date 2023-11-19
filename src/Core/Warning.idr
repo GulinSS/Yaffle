@@ -13,6 +13,11 @@ data Warning : Type where
      UnreachableClause : {vars : _} ->
                          FC -> Env Term vars -> Term vars -> Warning
      ShadowingGlobalDefs : FC -> List1 (String, List1 Name) -> Warning
+     ||| Soft-breaking change, make an error later.
+     ||| @ original Originally declared visibility on forward decl
+     ||| @ new      Incompatible new visibility on actual declaration.
+     IncompatibleVisibility : FC -> (original : Visibility) ->
+                                    (new : Visibility) -> Name -> Warning
      ||| First FC is type
      ||| @ shadowed list of names which are shadowed,
      |||   where they originally appear
@@ -33,6 +38,7 @@ Show Warning where
     show (ParserWarning _ msg) = msg
     show (UnreachableClause _ _ _) = ":Unreachable clause"
     show (ShadowingGlobalDefs _ _) = ":Shadowing names"
+    show (IncompatibleVisibility _ _ _ _) = ":Incompatible Visibility"
     show (ShadowingLocalBindings _ _) = ":Shadowing names"
     show (Deprecated name _) = ":Deprecated " ++ name
     show (GenericWarn msg) = msg
@@ -44,6 +50,7 @@ Eq Warning where
   ParserWarning fc1 x1 == ParserWarning fc2 x2 = fc1 == fc2 && x1 == x2
   UnreachableClause fc1 rho1 s1 == UnreachableClause fc2 rho2 s2 = fc1 == fc2
   ShadowingGlobalDefs fc1 xs1 == ShadowingGlobalDefs fc2 xs2 = fc1 == fc2 && xs1 == xs2
+  IncompatibleVisibility fc1 or1 n1 nm1 == IncompatibleVisibility fc2 or2 n2 nm2 = fc1 == fc2 && or1 == or2 && n1 == n2 && nm1 == nm2
   ShadowingLocalBindings fc1 xs1 == ShadowingLocalBindings fc2 xs2 = fc1 == fc2 && xs1 == xs2
   Deprecated x1 y1 == Deprecated x2 y2 = x1 == x2 && y1 == y2
   GenericWarn x1 == GenericWarn x2 = x1 == x2

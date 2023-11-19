@@ -13,6 +13,7 @@ import Core.TT
 import Libraries.Data.IntMap
 import Libraries.Data.IOArray
 import Libraries.Data.NameMap
+import Libraries.Data.WithDefault
 
 import Data.Vect
 
@@ -1248,7 +1249,7 @@ TTC GlobalDef where
                                         mul vars vis
                                         tot fl refs refsR inv def cdef Nothing sc Nothing)
               else pure (MkGlobalDef loc name (Erased loc Placeholder) [] [] [] []
-                                     mul [<] Public unchecked [] refs refsR
+                                     mul [<] (specified Public) unchecked [] refs refsR
                                      False def cdef Nothing [] Nothing)
 
 Core.Context.Ctxt.decode gam idx update (Coded bin)

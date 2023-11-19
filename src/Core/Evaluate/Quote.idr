@@ -10,6 +10,7 @@ import Core.TT
 import Core.Evaluate.Value
 
 import Data.Vect
+import Libraries.Data.WithDefault
 
 data QVar : Type where
 
@@ -211,7 +212,7 @@ parameters {auto c : Ref Ctxt Defs} {auto q : Ref QVar Int}
            True <- case getNS s of
                         Nothing => pure True
                         Just ns => do vis <- getVisibility fc n
-                                      pure $ reducibleInAny ns n vis
+                                      pure $ reducibleInAny ns n $ collapseDefault vis
               | False =>
                   do sp' <- quoteSpine s bounds env sp
                      pure $ applySpine (Ref fc nt n) sp'

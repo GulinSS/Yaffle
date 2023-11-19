@@ -21,6 +21,7 @@ import Data.List1
 import Data.String
 import Libraries.Data.NameMap
 import Libraries.Data.StringMap
+import Libraries.Data.WithDefault
 
 %default covering
 
@@ -166,7 +167,7 @@ processType {vars} eopts nest env fc rig vis opts (MkImpTy tfc nameFC n_in ty_ra
                 ({ eraseArgs := erased,
                    safeErase := dterased,
                    inferrable := infargs }
-                 (newDef fc n rig vars fullty vis def))
+                 (newDef fc n rig vars fullty (specified vis) def))
 
          log "declare.type" 2 $ "Setting options for " ++ show n ++ ": " ++ show opts
          let name = Resolved idx

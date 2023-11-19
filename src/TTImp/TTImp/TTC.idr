@@ -6,6 +6,8 @@ import Core.Context
 
 import TTImp.TTImp
 
+import Libraries.Data.WithDefault
+
 export
 TTC BuiltinType where
     toBuf BuiltinNatural = tag 0

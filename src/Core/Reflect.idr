@@ -7,6 +7,7 @@ import Core.TT
 
 import Data.List1
 import Data.SnocList
+import Libraries.Data.WithDefault
 
 %default covering
 
@@ -311,6 +312,24 @@ Reflect a => Reflect (Maybe a) where
   reflect fc defs lhs env (Just x)
       = do x' <- reflect fc defs lhs env x
            appCon fc defs (preludetypes "Just") [blank fc, (top, x')]
+
+export
+Reify a => Reify (WithDefault a def) where
+  reify defs val@(VDCon _ n _ _ args)
+      = case (dropAllNS !(full (gamma defs) n), !(spine args)) of
+             (UN (Basic "DefaultedValue"), _) => pure defaulted
+             (UN (Basic "SpecifiedValue"), [_, _, x]) => do x' <- reify defs !(expand x)
+                                                            pure (specified x')
+             _ => cantReify val "WithDefault"
+  reify defs val = cantReify val "WithDefault"
+
+export
+Reflect a => Reflect (WithDefault a def) where
+  reflect fc defs lhs env
+      = onWithDefault
+          (appCon fc defs (reflectionttimp "Default") [blank fc, blank fc])
+          (\x => do x' <- reflect fc defs lhs env x
+                    appCon fc defs (reflectionttimp "Value") [blank fc, blank fc, (top, x')])
 
 export
 (Reify a, Reify b) => Reify (a, b) where
