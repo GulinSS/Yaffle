@@ -182,7 +182,6 @@ clean-libs:
 	${MAKE} -C libs/network clean
 	${MAKE} -C libs/test clean
 	${MAKE} -C libs/linear clean
-	${MAKE} -C libs/papers clean
 
 clean: clean-libs support-clean testenv-clean
 	-${IDRIS2_BOOT} --clean ${IDRIS2_APP_IPKG}
