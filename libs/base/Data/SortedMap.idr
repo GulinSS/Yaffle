@@ -1,8 +1,7 @@
 module Data.SortedMap
 
 import Data.SortedMap.Dependent
-
-%hide Prelude.toList
+import Data.Zippable
 
 export
 record SortedMap k v where
@@ -21,9 +20,26 @@ export
 lookup : k -> SortedMap k v -> Maybe v
 lookup k = map snd . lookup k . unM
 
+public export %inline
+lookup' : SortedMap k v -> k -> Maybe v
+lookup' = flip lookup
+
 export
 insert : k -> v -> SortedMap k v -> SortedMap k v
 insert k v = M . insert k v . unM
+
+||| Inserts a key value pair into a map and merges duplicated values
+||| with the given function.
+export
+insertWith : (v -> v -> v) -> k -> v -> SortedMap k v -> SortedMap k v
+insertWith f k v xs =
+  case lookup k xs of
+    Just x  => insert k (f v x) xs
+    Nothing => insert k v xs
+
+public export %inline
+insert' : SortedMap k v -> (k, v) -> SortedMap k v
+insert' = flip $ uncurry insert
 
 export
 singleton : Ord k => k -> v -> SortedMap k v
@@ -31,11 +47,25 @@ singleton = M .: singleton
 
 export
 insertFrom : Foldable f => f (k, v) -> SortedMap k v -> SortedMap k v
-insertFrom = flip $ foldl $ flip $ uncurry insert
+insertFrom = flip $ foldl insert'
+
+public export %inline
+insertFrom' : Foldable f => SortedMap k v -> f (k, v) -> SortedMap k v
+insertFrom' = flip insertFrom
+
+||| Inserts any foldable of a key value pair into a map and merges duplicated
+||| values with the given function.
+export
+insertFromWith : Foldable f => (v -> v -> v) -> f (k, v) -> SortedMap k v -> SortedMap k v
+insertFromWith f = flip $ foldl $ flip $ uncurry $ insertWith f
 
 export
 delete : k -> SortedMap k v -> SortedMap k v
 delete k = M . delete k . unM
+
+public export %inline
+delete' : SortedMap k v -> k -> SortedMap k v
+delete' = flip delete
 
 ||| Updates or deletes a value based on the decision function
 |||
@@ -50,6 +80,10 @@ update f k m = case f $ lookup k m of
   Just v  => insert k v m
   Nothing => delete k m
 
+public export %inline
+update' : SortedMap k v -> (Maybe v -> Maybe v) -> k -> SortedMap k v
+update' m f x = update f x m
+
 ||| Updates existing value, if it is present, and does nothing otherwise
 |||
 ||| The current implementation performs up to two traversals of the original map
@@ -59,23 +93,38 @@ updateExisting f k m = case lookup k m of
   Just v  => insert k (f v) m
   Nothing => m
 
+public export %inline
+updateExisting' : SortedMap k v -> (v -> v) -> k -> SortedMap k v
+updateExisting' m f x = updateExisting f x m
+
 export
 fromList : Ord k => List (k, v) -> SortedMap k v
-fromList = flip insertFrom empty
+fromList = insertFrom' empty
+
+||| Converts a list of key-value pairs into a map and merges duplicated
+||| values with the given function.
+export
+fromListWith : Ord k => (v -> v -> v) -> List (k, v) -> SortedMap k v
+fromListWith f = flip (insertFromWith f) empty
 
 export
 toList : SortedMap k v -> List (k, v)
-toList = map unDPair . toList . unM
+toList = map unDPair . kvList . unM
+
+||| Returns a list of key-value pairs stored in this map
+public export %inline
+kvList : SortedMap k v -> List (k, v)
+kvList = toList
 
 ||| Gets the keys of the map.
 export
 keys : SortedMap k v -> List k
-keys = map fst . toList
+keys = map fst . kvList
 
 ||| Gets the values of the map. Could contain duplicates.
 export
 values : SortedMap k v -> List v
-values = map snd . toList
+values = map snd . kvList
 
 export
 implementation Functor (SortedMap k) where
@@ -94,6 +143,13 @@ export
 implementation Traversable (SortedMap k) where
   traverse f = map M . traverse f . unM
 
+export
+implementation Ord k => Zippable (SortedMap k) where
+  zipWith f mx my = fromList $ mapMaybe (\(k, x) => (k,) . f x <$> lookup k my) $ kvList mx
+  zipWith3 f mx my mz = fromList $ mapMaybe (\(k, x) => (k,) .: f x <$> lookup k my <*> lookup k mz) $ kvList mx
+  unzipWith f m = let m' = map f m in (map fst m', map snd m')
+  unzipWith3 f m = let m' = map f m in (map fst m', map (fst . snd) m', map (snd . snd) m')
+
 ||| Merge two maps. When encountering duplicate keys, using a function to combine the values.
 ||| Uses the ordering of the first map given.
 export
@@ -101,7 +157,7 @@ mergeWith : (v -> v -> v) -> SortedMap k v -> SortedMap k v -> SortedMap k v
 mergeWith f x y = insertFrom inserted x where
   inserted : List (k, v)
   inserted = do
-    (k, v) <- toList y
+    (k, v) <- kvList y
     let v' = (maybe id f $ lookup k x) v
     pure (k, v')
 
@@ -136,13 +192,18 @@ rightMost : SortedMap key val -> Maybe (key,val)
 rightMost = map unDPair . rightMost . unM
 
 
+||| Pops the leftmost key and corresponding value from the map
+export
+pop : SortedMap k v -> Maybe ((k, v), SortedMap k v)
+pop = map (bimap unDPair M) . pop . unM
+
 export
 (Show k, Show v) => Show (SortedMap k v) where
-   show m = "fromList " ++ (show $ toList m)
+   show m = "fromList " ++ show (kvList m)
 
 export
 (Eq k, Eq v) => Eq (SortedMap k v) where
-  (==) = (==) `on` toList
+  (==) = (==) `on` kvList
 
 -- TODO: is this the right variant of merge to use for this? I think it is, but
 -- I could also see the advantages of using `mergeLeft`. The current approach is

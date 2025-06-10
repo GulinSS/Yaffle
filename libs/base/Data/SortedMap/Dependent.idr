@@ -219,12 +219,20 @@ lookup : (x : k) -> SortedDMap k v -> Maybe (y : k ** v y) -- could return also 
 lookup _ Empty = Nothing
 lookup k (M _ t) = treeLookup k t
 
+public export %inline
+lookup' : SortedDMap k v -> (x : k) -> Maybe (y : k ** v y)
+lookup' = flip lookup
+
 export
 lookupPrecise : DecEq k => (x : k) -> SortedDMap k v -> Maybe (v x)
 lookupPrecise x = lookup x >=> \(y ** v) =>
   case decEq x y of
     Yes Refl => Just v
     No _     => Nothing
+
+public export %inline
+lookupPrecise' : DecEq k => SortedDMap k v -> (x : k) -> Maybe (v x)
+lookupPrecise' m x = lookupPrecise x m
 
 export
 insert : (x : k) -> v x -> SortedDMap k v -> SortedDMap k v
@@ -234,13 +242,21 @@ insert k v (M _ t) =
     Left t' => (M _ t')
     Right t' => (M _ t')
 
+public export %inline
+insert' : SortedDMap k v -> (x : k ** v x) -> SortedDMap k v
+insert' m (x ** v) = insert x v m
+
 export
 singleton : Ord k => (x : k) -> v x -> SortedDMap k v
 singleton k v = insert k v empty
 
 export
 insertFrom : Foldable f => f (x : k ** v x) -> SortedDMap k v -> SortedDMap k v
-insertFrom = flip $ foldl $ flip $ uncurry insert
+insertFrom = flip $ foldl insert'
+
+public export %inline
+insertFrom' : Foldable f => SortedDMap k v -> f (x : k ** v x) -> SortedDMap k v
+insertFrom' = flip insertFrom
 
 export
 delete : k -> SortedDMap k v -> SortedDMap k v
@@ -253,6 +269,10 @@ delete k (M (S n) t) =
   case treeDelete (S n) k t of
     Left t' => (M _ t')
     Right t' => (M _ t')
+
+public export %inline
+delete' : SortedDMap k v -> k -> SortedDMap k v
+delete' = flip delete
 
 ||| Updates or deletes a value based on the decision function
 |||
@@ -267,6 +287,10 @@ update k f m = case f $ lookupPrecise k m of
   Just v  => insert k v m
   Nothing => delete k m
 
+public export %inline
+update' : DecEq k => SortedDMap k v -> (x : k ** Maybe (v x) -> Maybe (v x)) -> SortedDMap k v
+update' m (x ** f) = update x f m
+
 ||| Updates existing value, if it is present, and does nothing otherwise
 |||
 ||| The current implementation performs up to two traversals of the original map
@@ -276,23 +300,32 @@ updateExisting k f m = case lookupPrecise k m of
   Just v  => insert k (f v) m
   Nothing => m
 
+public export %inline
+updateExisting' : DecEq k => SortedDMap k v -> (x : k ** v x -> v x) -> SortedDMap k v
+updateExisting' m (x ** f) = updateExisting x f m
+
 export
 fromList : Ord k => List (x : k ** v x) -> SortedDMap k v
-fromList = foldl (flip (uncurry insert)) empty
+fromList = foldl insert' empty
 
 export
 toList : SortedDMap k v -> List (x : k ** v x)
 toList Empty = []
 toList (M _ t) = treeToList t
 
+||| Returns a list of key-value pairs stored in this map
+public export %inline
+kvList : SortedDMap k v -> List (x : k ** v x)
+kvList = toList
+
 ||| Gets the keys of the map.
 export
 keys : SortedDMap k v -> List k
-keys = map fst . toList
+keys = map fst . kvList
 
 export
 values : SortedDMap k v -> List (x : k ** v x)
-values = toList
+values = kvList
 
 treeMap : ({x : k} -> a x -> b x) -> Tree n k a o -> Tree n k b o
 treeMap f (Leaf k v) = Leaf k (f v)
@@ -346,6 +379,10 @@ traverse : Applicative f => ({x : k} -> v x -> f (w x)) -> SortedDMap k v -> f (
 traverse _ Empty = pure Empty
 traverse f (M _ t) = M _ <$> treeTraverse f t
 
+public export %inline
+for : Applicative f => SortedDMap k v -> ({x : k} -> v x -> f (w x)) -> f (SortedDMap k w)
+for = flip traverse
+
 ||| Merge two maps. When encountering duplicate keys, using a function to combine the values.
 ||| Uses the ordering of the first map given.
 export
@@ -353,7 +390,7 @@ mergeWith : DecEq k => ({x : k} -> v x -> v x -> v x) -> SortedDMap k v -> Sorte
 mergeWith f x y = insertFrom inserted x where
   inserted : List (x : k ** v x)
   inserted = do
-    (k ** v) <- toList y
+    (k ** v) <- kvList y
     let v' = (maybe id f $ lookupPrecise k x) v
     pure (k ** v')
 
@@ -419,17 +456,24 @@ rightMost : SortedDMap k v -> Maybe (x : k ** v x)
 rightMost Empty = Nothing
 rightMost (M _ t) = Just $ treeRightMost t
 
+||| Pops the leftmost key and corresponding value from the map
+export
+pop : SortedDMap k v -> Maybe ((x : k ** v x), SortedDMap k v)
+pop m = do
+  kv@(k ** _) <- leftMost m
+  pure (kv, delete k m)
+
 export
 (Show k, {x : k} -> Show (v x)) => Show (SortedDMap k v) where
-   show m = "fromList " ++ (show $ toList m)
+   show m = "fromList " ++ (show $ kvList m)
 
 export
 (DecEq k, {x : k} -> Eq (v x)) => Eq (SortedDMap k v) where
-  (==) = (==) `on` toList
+  (==) = (==) `on` kvList
 
 export
 strictSubmap : DecEq k => ({x : k} -> Eq (v x)) => (sub : SortedDMap k v) -> (sup : SortedDMap k v) -> Bool
-strictSubmap sub sup = all (\(k ** v) => Just v == lookupPrecise k sup) $ toList sub
+strictSubmap sub sup = all (\(k ** v) => Just v == lookupPrecise k sup) $ kvList sub
 
 -- TODO: is this the right variant of merge to use for this? I think it is, but
 -- I could also see the advantages of using `mergeLeft`. The current approach is

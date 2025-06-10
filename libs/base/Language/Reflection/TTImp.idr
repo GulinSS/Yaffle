@@ -1,7 +1,7 @@
 module Language.Reflection.TTImp
 
+import public Data.List1
 import Data.Maybe
-import Data.String
 import public Language.Reflection.TT
 
 
@@ -123,13 +123,13 @@ mutual
 
   public export
   data ITy : Type where
-       MkTy : FC -> (nameFC : FC) -> (n : Name) -> (ty : TTImp) -> ITy
+       MkTy : FC -> (n : WithFC Name) -> (ty : TTImp) -> ITy
 
   %name ITy sig
 
   public export
   data DataOpt : Type where
-       SearchBy : List Name -> DataOpt -- determining arguments
+       SearchBy : List1 Name -> DataOpt -- determining arguments
        NoHints : DataOpt -- Don't generate search hints for constructors
        UniqueSearch : DataOpt -- auto implicit search must check result is unique
        External : DataOpt -- implemented externally
@@ -171,7 +171,7 @@ mutual
        PatClause : FC -> (lhs : TTImp) -> (rhs : TTImp) -> Clause
        WithClause : FC -> (lhs : TTImp) ->
                     (rig : Count) -> (wval : TTImp) -> -- with'd expression (& quantity)
-                    (prf : Maybe Name) -> -- optional name for the proof
+                    (prf : Maybe (Count, Name)) -> -- optional name for the proof (& quantity)
                     (flags : List WithFlag) ->
                     List Clause -> Clause
        ImpossibleClause : FC -> (lhs : TTImp) -> Clause
@@ -180,8 +180,8 @@ mutual
 
   public export
   data WithDefault : (a : Type) -> (def : a) -> Type where
-    DefaultedValue : WithDefault a def
-    SpecifiedValue : a -> WithDefault a def
+       DefaultedValue : WithDefault a def
+       SpecifiedValue : a -> WithDefault a def
 
   export
   specified : a -> WithDefault a def
@@ -193,7 +193,7 @@ mutual
 
   export
   collapseDefault : {def : a} -> WithDefault a def -> a
-  collapseDefault DefaultedValue = def
+  collapseDefault DefaultedValue     = def
   collapseDefault (SpecifiedValue a) = a
 
   export
@@ -203,16 +203,23 @@ mutual
   onWithDefault _ valHandler (SpecifiedValue v) = valHandler v
 
   public export
+  data IClaimData : Type where
+    MkIClaimData : (rig  : Count) ->
+                   (vis  : Visibility) ->
+                   (opts : List FnOpt) ->
+                   (type : ITy) ->
+                   IClaimData
+
+  public export
   data Decl : Type where
-       IClaim : FC -> Count -> Visibility -> List FnOpt ->
-                ITy -> Decl
+       IClaim : WithFC IClaimData -> Decl
        IData : FC -> WithDefault Visibility Private -> Maybe TotalReq -> Data -> Decl
        IDef : FC -> Name -> (cls : List Clause) -> Decl
        IParameters : FC -> (params : List (Name, Count, PiInfo TTImp, TTImp)) ->
                      (decls : List Decl) -> Decl
        IRecord : FC ->
                  Maybe String -> -- nested namespace
-                 WithDefault Visibility Private -> 
+                 WithDefault Visibility Private ->
                  Maybe TotalReq -> Record -> Decl
        INamespace : FC -> Namespace -> (decls : List Decl) -> Decl
        ITransform : FC -> Name -> TTImp -> TTImp -> Decl
@@ -221,6 +228,18 @@ mutual
        IBuiltin : FC -> BuiltinType -> Name -> Decl
 
   %name Decl decl
+
+%TTImpLit fromTTImp
+
+public export
+fromTTImp : TTImp -> TTImp
+fromTTImp s = s
+
+%declsLit fromDecls
+
+public export
+fromDecls : List Decl -> List Decl
+fromDecls decls = decls
 
 public export
 getFC : TTImp -> FC
@@ -261,7 +280,7 @@ mapTopmostFC fcf $ IVar fc a                = IVar (fcf fc) a
 mapTopmostFC fcf $ IPi fc a b c d e         = IPi (fcf fc) a b c d e
 mapTopmostFC fcf $ ILam fc a b c d e        = ILam (fcf fc) a b c d e
 mapTopmostFC fcf $ ILet fc a b c d e f      = ILet (fcf fc) a b c d e f
-mapTopmostFC fcf $ ICase fc a b c d         = ICase (fcf fc) a b c d
+mapTopmostFC fcf $ ICase fc opts a b c    = ICase (fcf fc) opts a b c
 mapTopmostFC fcf $ ILocal fc a b            = ILocal (fcf fc) a b
 mapTopmostFC fcf $ IUpdate fc a b           = IUpdate (fcf fc) a b
 mapTopmostFC fcf $ IApp fc a b              = IApp (fcf fc) a b
@@ -396,7 +415,7 @@ parameters {auto eqTTImp : Eq TTImp}
 
   public export
   Eq ITy where
-    MkTy _ _ n ty == MkTy _ _ n' ty' = n == n' && ty == ty'
+    MkTy _ n ty == MkTy _ n' ty' = n.value == n'.value && ty == ty'
 
   public export
   Eq Data where
@@ -417,9 +436,13 @@ parameters {auto eqTTImp : Eq TTImp}
       n == n' && ps == ps' && opts == opts' && cn == cn' && fs == fs'
 
   public export
-  Eq Decl where
-    IClaim _ c v fos t == IClaim _ c' v' fos' t' =
+  Eq IClaimData where
+    MkIClaimData c v fos t == MkIClaimData c' v' fos' t' =
       c == c' && v == v' && fos == fos' && t == t'
+
+  public export
+  Eq Decl where
+    IClaim c == IClaim c' = c.value == c'.value
     IData _ v t d == IData _ v' t' d' =
       v == v' && t == t' && d == d'
     IDef _ n cs == IDef _ n' cs' =
@@ -498,12 +521,12 @@ data Mode = InDecl | InCase
 
 mutual
 
-  export
+  public export
   Show IField where
     show (MkIField fc rig pinfo nm s) =
       showPiInfo {wrapExplicit=False} pinfo (showCount rig "\{show nm} : \{show s}")
 
-  export
+  public export
   Show Record where
     show (MkRecord fc n params opts conName fields) -- TODO: print opts
       = unwords
@@ -518,7 +541,7 @@ mutual
       , "}"
       ]
 
-  export
+  public export
   Show Data where
     show (MkData fc n tycon opts datacons) -- TODO: print opts
       = unwords
@@ -527,15 +550,18 @@ mutual
       ]
     show (MkLater fc n tycon) = unwords [ "data", show n, ":", show tycon ]
 
-  export
+  public export
   Show ITy where
-    show (MkTy fc nameFC n ty) = "\{show n} : \{show ty}"
+    show (MkTy fc n ty) = "\{show n.value} : \{show ty}"
 
-  export
-  Show Decl where
-    show (IClaim fc rig vis xs sig)
+  Show IClaimData where
+    show (MkIClaimData rig vis xs sig)
       = unwords [ show vis
                 , showCount rig (show sig) ]
+
+  public export
+  Show Decl where
+    show (IClaim claim) = show claim.value
     show (IData fc vis treq dt)
       = unwords [ show vis
                 , showTotalReq treq (show dt)
@@ -565,12 +591,12 @@ mutual
       Just (topic, lvl) => "%logging \{joinBy "." topic} \{show lvl}"
     show (IBuiltin fc bty nm) = "%builtin \{show bty} \{show nm}"
 
-  export
+  public export
   Show IFieldUpdate where
     show (ISetField path s) = "\{joinBy "->" path} := \{show s}"
     show (ISetFieldApp path s) = "\{joinBy "->" path} $= \{show s}"
 
-  export
+  public export
   showClause : Mode -> Clause -> String
   showClause mode (PatClause fc lhs rhs) = "\{show lhs} \{showSep mode} \{show rhs}" where
     showSep : Mode -> String
@@ -579,7 +605,8 @@ mutual
   showClause mode (WithClause fc lhs rig wval prf flags cls) -- TODO print flags
       = unwords
       [ show lhs, "with"
-      , showCount rig $ maybe id (\ nm => (++ " proof \{show nm}")) prf
+        -- TODO: remove `the` after fix idris-lang/Idris2#3418
+      , showCount rig $ maybe id (the (_ -> _) $ \(rg, nm) => (++ " proof \{showCount rg $ show nm}")) prf
                       $ showParens True (show wval)
       , "{", joinBy "; " (assert_total $ map (showClause mode) cls), "}"
       ]
@@ -599,7 +626,7 @@ mutual
     else unwords [showPrefix True nm, a, b]
   showIApps f ts = unwords (show f :: ts)
 
-  export
+  public export
   Show TTImp where
     showPrec d (IVar fc nm) = showPrefix True nm
     showPrec d (IPi fc MW ExplicitArg Nothing argTy retTy)
@@ -677,12 +704,12 @@ data Argument a
   | NamedArg FC Name a
   | AutoArg FC a
 
-export
+public export
 isExplicit : Argument a -> Maybe (FC, a)
 isExplicit (Arg fc a) = pure (fc, a)
 isExplicit _ = Nothing
 
-export
+public export
 fromPiInfo : FC -> PiInfo t -> Maybe Name -> a -> Maybe (Argument a)
 fromPiInfo fc ImplicitArg (Just nm) a = pure (NamedArg fc nm a)
 fromPiInfo fc ExplicitArg _ a = pure (Arg fc a)
@@ -690,26 +717,26 @@ fromPiInfo fc AutoImplicit _ a = pure (AutoArg fc a)
 fromPiInfo fc (DefImplicit _) (Just nm) a = pure (NamedArg fc nm a)
 fromPiInfo _ _ _ _ = Nothing
 
-export
+public export
 Functor Argument where
   map f (Arg fc a) = Arg fc (f a)
   map f (NamedArg fc nm a) = NamedArg fc nm (f a)
   map f (AutoArg fc a) = AutoArg fc (f a)
 
-export
+public export
 iApp : TTImp -> Argument TTImp -> TTImp
 iApp f (Arg fc t) = IApp fc f t
 iApp f (NamedArg fc nm t) = INamedApp fc f nm t
 iApp f (AutoArg fc t) = IAutoApp fc f t
 
-export
+public export
 unArg : Argument a -> a
 unArg (Arg _ x) = x
 unArg (NamedArg _ _ x) = x
 unArg (AutoArg _ x) = x
 
 ||| We often apply multiple arguments, this makes things simpler
-export
+public export
 apply : TTImp -> List (Argument TTImp) -> TTImp
 apply = foldl iApp
 
@@ -727,7 +754,7 @@ record AppView (t : TTImp) where
   args : SnocList (Argument TTImp)
   0 isAppView : IsAppView head args t
 
-export
+public export
 appView : (t : TTImp) -> Maybe (AppView t)
 appView (IVar fc f) = Just (MkAppView (fc, f) [<] AVVar)
 appView (IApp fc f t) = do
@@ -743,28 +770,28 @@ appView _ = Nothing
 
 parameters (f : TTImp -> TTImp)
 
-  export
+  public export
   mapTTImp : TTImp -> TTImp
 
-  export
+  public export
   mapPiInfo : PiInfo TTImp -> PiInfo TTImp
   mapPiInfo ImplicitArg = ImplicitArg
   mapPiInfo ExplicitArg = ExplicitArg
   mapPiInfo AutoImplicit = AutoImplicit
   mapPiInfo (DefImplicit t) = DefImplicit (mapTTImp t)
 
-  export
+  public export
   mapClause : Clause -> Clause
   mapClause (PatClause fc lhs rhs) = PatClause fc (mapTTImp lhs) (mapTTImp rhs)
   mapClause (WithClause fc lhs rig wval prf flags cls)
     = WithClause fc (mapTTImp lhs) rig (mapTTImp wval) prf flags (assert_total $ map mapClause cls)
   mapClause (ImpossibleClause fc lhs) = ImpossibleClause fc (mapTTImp lhs)
 
-  export
+  public export
   mapITy : ITy -> ITy
-  mapITy (MkTy fc nameFC n ty) = MkTy fc nameFC n (mapTTImp ty)
+  mapITy (MkTy fc n ty) = MkTy fc n (mapTTImp ty)
 
-  export
+  public export
   mapFnOpt : FnOpt -> FnOpt
   mapFnOpt Inline = Inline
   mapFnOpt NoInline = NoInline
@@ -780,25 +807,28 @@ parameters (f : TTImp -> TTImp)
   mapFnOpt Macro = Macro
   mapFnOpt (SpecArgs ns) = SpecArgs ns
 
-  export
+  public export
   mapData : Data -> Data
   mapData (MkData fc n tycon opts datacons)
     = MkData fc n (map mapTTImp tycon) opts (map mapITy datacons)
   mapData (MkLater fc n tycon) = MkLater fc n (mapTTImp tycon)
 
-  export
+  public export
   mapIField : IField -> IField
   mapIField (MkIField fc rig pinfo n t) = MkIField fc rig (mapPiInfo pinfo) n (mapTTImp t)
 
-  export
+  public export
   mapRecord : Record -> Record
   mapRecord (MkRecord fc n params opts conName fields)
     = MkRecord fc n (map (map $ map $ bimap mapPiInfo mapTTImp) params) opts conName (map mapIField fields)
 
-  export
+  mapIClaimData : IClaimData -> IClaimData
+  mapIClaimData (MkIClaimData rig vis opts ty)
+    = MkIClaimData rig vis (map mapFnOpt opts) (mapITy ty)
+
+  public export
   mapDecl : Decl -> Decl
-  mapDecl (IClaim fc rig vis opts ty)
-    = IClaim fc rig vis (map mapFnOpt opts) (mapITy ty)
+  mapDecl (IClaim claim) = IClaim $ map mapIClaimData claim
   mapDecl (IData fc vis mtreq dat) = IData fc vis mtreq (mapData dat)
   mapDecl (IDef fc n cls) = IDef fc n (map mapClause cls)
   mapDecl (IParameters fc params xs) = IParameters fc params (assert_total $ map mapDecl xs)
@@ -809,12 +839,12 @@ parameters (f : TTImp -> TTImp)
   mapDecl (ILog x) = ILog x
   mapDecl (IBuiltin fc x n) = IBuiltin fc x n
 
-  export
+  public export
   mapIFieldUpdate : IFieldUpdate -> IFieldUpdate
   mapIFieldUpdate (ISetField path t) = ISetField path (mapTTImp t)
   mapIFieldUpdate (ISetFieldApp path t) = ISetFieldApp path (mapTTImp t)
 
-  export
+  public export
   mapAltType : AltType -> AltType
   mapAltType FirstSuccess = FirstSuccess
   mapAltType Unique = Unique
@@ -856,36 +886,36 @@ parameters (f : TTImp -> TTImp)
   mapTTImp (Implicit fc bindIfUnsolved) = f $ Implicit fc bindIfUnsolved
   mapTTImp (IWithUnambigNames fc xs t) = f $ IWithUnambigNames fc xs (mapTTImp t)
 
-parameters {0 m : Type -> Type} {auto mon : Monad m} (f : TTImp -> m TTImp)
+parameters {0 m : Type -> Type} {auto apl : Applicative m} (f : (original : TTImp) -> m TTImp -> m TTImp)
 
-  export
-  mapMTTImp : TTImp -> m TTImp
+  public export
+  mapATTImp' : TTImp -> m TTImp
 
-  export
+  public export
   mapMPiInfo : PiInfo TTImp -> m (PiInfo TTImp)
   mapMPiInfo ImplicitArg = pure ImplicitArg
   mapMPiInfo ExplicitArg = pure ExplicitArg
   mapMPiInfo AutoImplicit = pure AutoImplicit
-  mapMPiInfo (DefImplicit t) = DefImplicit <$> mapMTTImp t
+  mapMPiInfo (DefImplicit t) = DefImplicit <$> mapATTImp' t
 
-  export
+  public export
   mapMClause : Clause -> m Clause
-  mapMClause (PatClause fc lhs rhs) = PatClause fc <$> mapMTTImp lhs <*> mapMTTImp rhs
+  mapMClause (PatClause fc lhs rhs) = PatClause fc <$> mapATTImp' lhs <*> mapATTImp' rhs
   mapMClause (WithClause fc lhs rig wval prf flags cls)
     = WithClause fc
-    <$> mapMTTImp lhs
+    <$> mapATTImp' lhs
     <*> pure rig
-    <*> mapMTTImp wval
+    <*> mapATTImp' wval
     <*> pure prf
     <*> pure flags
     <*> assert_total (traverse mapMClause cls)
-  mapMClause (ImpossibleClause fc lhs) = ImpossibleClause fc <$> mapMTTImp lhs
+  mapMClause (ImpossibleClause fc lhs) = ImpossibleClause fc <$> mapATTImp' lhs
 
-  export
+  public export
   mapMITy : ITy -> m ITy
-  mapMITy (MkTy fc nameFC n ty) = MkTy fc nameFC n <$> mapMTTImp ty
+  mapMITy (MkTy fc n ty) = MkTy fc n <$> mapATTImp' ty
 
-  export
+  public export
   mapMFnOpt : FnOpt -> m FnOpt
   mapMFnOpt Inline = pure Inline
   mapMFnOpt NoInline = pure NoInline
@@ -894,95 +924,110 @@ parameters {0 m : Type -> Type} {auto mon : Monad m} (f : TTImp -> m TTImp)
   mapMFnOpt (Hint b) = pure (Hint b)
   mapMFnOpt (GlobalHint b) = pure (GlobalHint b)
   mapMFnOpt ExternFn = pure ExternFn
-  mapMFnOpt (ForeignFn ts) = ForeignFn <$> traverse mapMTTImp ts
-  mapMFnOpt (ForeignExport ts) = ForeignExport <$> traverse mapMTTImp ts
+  mapMFnOpt (ForeignFn ts) = ForeignFn <$> traverse mapATTImp' ts
+  mapMFnOpt (ForeignExport ts) = ForeignExport <$> traverse mapATTImp' ts
   mapMFnOpt Invertible = pure Invertible
   mapMFnOpt (Totality treq) = pure (Totality treq)
   mapMFnOpt Macro = pure Macro
   mapMFnOpt (SpecArgs ns) = pure (SpecArgs ns)
 
-  export
+  public export
   mapMData : Data -> m Data
   mapMData (MkData fc n tycon opts datacons)
-    = MkData fc n <$> traverse mapMTTImp tycon <*> pure opts <*> traverse mapMITy datacons
-  mapMData (MkLater fc n tycon) = MkLater fc n <$> mapMTTImp tycon
+    = MkData fc n <$> traverse mapATTImp' tycon <*> pure opts <*> traverse mapMITy datacons
+  mapMData (MkLater fc n tycon) = MkLater fc n <$> mapATTImp' tycon
 
-  export
+  public export
   mapMIField : IField -> m IField
   mapMIField (MkIField fc rig pinfo n t)
-   = MkIField fc rig <$> mapMPiInfo pinfo <*> pure n <*> mapMTTImp t
+   = MkIField fc rig <$> mapMPiInfo pinfo <*> pure n <*> mapATTImp' t
 
-  export
+  public export
   mapMRecord : Record -> m Record
   mapMRecord (MkRecord fc n params opts conName fields)
     = MkRecord fc n
-    <$> traverse (bitraverse pure $ bitraverse pure $ bitraverse mapMPiInfo mapMTTImp) params
+    <$> traverse (bitraverse pure $ bitraverse pure $ bitraverse mapMPiInfo mapATTImp') params
     <*> pure opts
     <*> pure conName
     <*> traverse mapMIField fields
 
-  export
+  mapMIClaimData : IClaimData -> m IClaimData
+  mapMIClaimData (MkIClaimData rig vis opts ty)
+    = MkIClaimData rig vis <$> traverse mapMFnOpt opts <*> mapMITy ty
+
+  public export
   mapMDecl : Decl -> m Decl
-  mapMDecl (IClaim fc rig vis opts ty)
-    = IClaim fc rig vis <$> traverse mapMFnOpt opts <*> mapMITy ty
+  mapMDecl (IClaim claim) = IClaim <$> traverse mapMIClaimData claim
   mapMDecl (IData fc vis mtreq dat) = IData fc vis mtreq <$> mapMData dat
   mapMDecl (IDef fc n cls) = IDef fc n <$> traverse mapMClause cls
   mapMDecl (IParameters fc params xs) = IParameters fc params <$> assert_total (traverse mapMDecl xs)
   mapMDecl (IRecord fc mstr x y rec) = IRecord fc mstr x y <$> mapMRecord rec
   mapMDecl (INamespace fc mi xs) = INamespace fc mi <$> assert_total (traverse mapMDecl xs)
-  mapMDecl (ITransform fc n t u) = ITransform fc n <$> mapMTTImp t <*> mapMTTImp u
-  mapMDecl (IRunElabDecl fc t) = IRunElabDecl fc <$> mapMTTImp t
+  mapMDecl (ITransform fc n t u) = ITransform fc n <$> mapATTImp' t <*> mapATTImp' u
+  mapMDecl (IRunElabDecl fc t) = IRunElabDecl fc <$> mapATTImp' t
   mapMDecl (ILog x) = pure (ILog x)
   mapMDecl (IBuiltin fc x n) = pure (IBuiltin fc x n)
 
-  export
+  public export
   mapMIFieldUpdate : IFieldUpdate -> m IFieldUpdate
-  mapMIFieldUpdate (ISetField path t) = ISetField path <$> mapMTTImp t
-  mapMIFieldUpdate (ISetFieldApp path t) = ISetFieldApp path <$> mapMTTImp t
+  mapMIFieldUpdate (ISetField path t) = ISetField path <$> mapATTImp' t
+  mapMIFieldUpdate (ISetFieldApp path t) = ISetFieldApp path <$> mapATTImp' t
 
-  export
+  public export
   mapMAltType : AltType -> m AltType
   mapMAltType FirstSuccess = pure FirstSuccess
   mapMAltType Unique = pure Unique
-  mapMAltType (UniqueDefault t) = UniqueDefault <$> mapMTTImp t
+  mapMAltType (UniqueDefault t) = UniqueDefault <$> mapATTImp' t
 
-  mapMTTImp t@(IVar _ _) = f t
-  mapMTTImp (IPi fc rig pinfo x argTy retTy)
-    = f =<< IPi fc rig <$> mapMPiInfo pinfo <*> pure x <*> mapMTTImp argTy <*> mapMTTImp retTy
-  mapMTTImp (ILam fc rig pinfo x argTy lamTy)
-    = f =<< ILam fc rig <$> mapMPiInfo pinfo <*> pure x <*> mapMTTImp argTy <*> mapMTTImp lamTy
-  mapMTTImp (ILet fc lhsFC rig n nTy nVal scope)
-    = f =<< ILet fc lhsFC rig n <$> mapMTTImp nTy <*> mapMTTImp nVal <*> mapMTTImp scope
-  mapMTTImp (ICase fc opts t ty cls)
-    = f =<< ICase fc opts <$> mapMTTImp t <*> mapMTTImp ty <*> assert_total (traverse mapMClause cls)
-  mapMTTImp (ILocal fc xs t)
-    = f =<< ILocal fc <$> assert_total (traverse mapMDecl xs) <*> mapMTTImp t
-  mapMTTImp (IUpdate fc upds t)
-    = f =<< IUpdate fc <$> assert_total (traverse mapMIFieldUpdate upds) <*> mapMTTImp t
-  mapMTTImp (IApp fc t u)
-    = f =<< IApp fc <$> mapMTTImp t <*> mapMTTImp u
-  mapMTTImp (IAutoApp fc t u)
-    = f =<< IAutoApp fc <$> mapMTTImp t <*> mapMTTImp u
-  mapMTTImp (INamedApp fc t n u)
-    = f =<< INamedApp fc <$> mapMTTImp t <*> pure n <*> mapMTTImp u
-  mapMTTImp (IWithApp fc t u) = f =<< IWithApp fc <$> mapMTTImp t <*> mapMTTImp u
-  mapMTTImp (ISearch fc depth) = f (ISearch fc depth)
-  mapMTTImp (IAlternative fc alt ts)
-    = f =<< IAlternative fc <$> mapMAltType alt <*> assert_total (traverse mapMTTImp ts)
-  mapMTTImp (IRewrite fc t u) = f =<< IRewrite fc <$> mapMTTImp t <*> mapMTTImp u
-  mapMTTImp (IBindHere fc bm t) = f =<< IBindHere fc bm <$> mapMTTImp t
-  mapMTTImp (IBindVar fc str) = f (IBindVar fc str)
-  mapMTTImp (IAs fc nameFC side n t) = f =<< IAs fc nameFC side n <$> mapMTTImp t
-  mapMTTImp (IMustUnify fc x t) = f =<< IMustUnify fc x <$> mapMTTImp t
-  mapMTTImp (IDelayed fc lz t) = f =<< IDelayed fc lz <$> mapMTTImp t
-  mapMTTImp (IDelay fc t) = f =<< IDelay fc <$> mapMTTImp t
-  mapMTTImp (IForce fc t) = f =<< IForce fc <$> mapMTTImp t
-  mapMTTImp (IQuote fc t) = f =<< IQuote fc <$> mapMTTImp t
-  mapMTTImp (IQuoteName fc n) = f (IQuoteName fc n)
-  mapMTTImp (IQuoteDecl fc xs) = f =<< IQuoteDecl fc <$> assert_total (traverse mapMDecl xs)
-  mapMTTImp (IUnquote fc t) = f =<< IUnquote fc <$> mapMTTImp t
-  mapMTTImp (IPrimVal fc c) = f (IPrimVal fc c)
-  mapMTTImp (IType fc) = f (IType fc)
-  mapMTTImp (IHole fc str) = f (IHole fc str)
-  mapMTTImp (Implicit fc bindIfUnsolved) = f (Implicit fc bindIfUnsolved)
-  mapMTTImp (IWithUnambigNames fc xs t) = f =<< IWithUnambigNames fc xs <$> mapMTTImp t
+  mapATTImp' t@(IVar _ _) = f t $ pure t
+  mapATTImp' o@(IPi fc rig pinfo x argTy retTy)
+    = f o $ IPi fc rig <$> mapMPiInfo pinfo <*> pure x <*> mapATTImp' argTy <*> mapATTImp' retTy
+  mapATTImp' o@(ILam fc rig pinfo x argTy lamTy)
+    = f o $ ILam fc rig <$> mapMPiInfo pinfo <*> pure x <*> mapATTImp' argTy <*> mapATTImp' lamTy
+  mapATTImp' o@(ILet fc lhsFC rig n nTy nVal scope)
+    = f o $ ILet fc lhsFC rig n <$> mapATTImp' nTy <*> mapATTImp' nVal <*> mapATTImp' scope
+  mapATTImp' o@(ICase fc opts t ty cls)
+    = f o $ ICase fc opts <$> mapATTImp' t <*> mapATTImp' ty <*> assert_total (traverse mapMClause cls)
+  mapATTImp' o@(ILocal fc xs t)
+    = f o $ ILocal fc <$> assert_total (traverse mapMDecl xs) <*> mapATTImp' t
+  mapATTImp' o@(IUpdate fc upds t)
+    = f o $ IUpdate fc <$> assert_total (traverse mapMIFieldUpdate upds) <*> mapATTImp' t
+  mapATTImp' o@(IApp fc t u)
+    = f o $ IApp fc <$> mapATTImp' t <*> mapATTImp' u
+  mapATTImp' o@(IAutoApp fc t u)
+    = f o $ IAutoApp fc <$> mapATTImp' t <*> mapATTImp' u
+  mapATTImp' o@(INamedApp fc t n u)
+    = f o $ INamedApp fc <$> mapATTImp' t <*> pure n <*> mapATTImp' u
+  mapATTImp' o@(IWithApp fc t u) = f o $ IWithApp fc <$> mapATTImp' t <*> mapATTImp' u
+  mapATTImp' o@(ISearch fc depth) = f o $ pure $ ISearch fc depth
+  mapATTImp' o@(IAlternative fc alt ts)
+    = f o $ IAlternative fc <$> mapMAltType alt <*> assert_total (traverse mapATTImp' ts)
+  mapATTImp' o@(IRewrite fc t u) = f o $ IRewrite fc <$> mapATTImp' t <*> mapATTImp' u
+  mapATTImp' o@(IBindHere fc bm t) = f o $ IBindHere fc bm <$> mapATTImp' t
+  mapATTImp' o@(IBindVar fc str) = f o $ pure $ IBindVar fc str
+  mapATTImp' o@(IAs fc nameFC side n t) = f o $ IAs fc nameFC side n <$> mapATTImp' t
+  mapATTImp' o@(IMustUnify fc x t) = f o $ IMustUnify fc x <$> mapATTImp' t
+  mapATTImp' o@(IDelayed fc lz t) = f o $ IDelayed fc lz <$> mapATTImp' t
+  mapATTImp' o@(IDelay fc t) = f o $ IDelay fc <$> mapATTImp' t
+  mapATTImp' o@(IForce fc t) = f o $ IForce fc <$> mapATTImp' t
+  mapATTImp' o@(IQuote fc t) = f o $ IQuote fc <$> mapATTImp' t
+  mapATTImp' o@(IQuoteName fc n) = f o $ pure $ IQuoteName fc n
+  mapATTImp' o@(IQuoteDecl fc xs) = f o $ IQuoteDecl fc <$> assert_total (traverse mapMDecl xs)
+  mapATTImp' o@(IUnquote fc t) = f o $ IUnquote fc <$> mapATTImp' t
+  mapATTImp' o@(IPrimVal fc c) = f o $ pure $ IPrimVal fc c
+  mapATTImp' o@(IType fc) = f o $ pure $ IType fc
+  mapATTImp' o@(IHole fc str) = f o $ pure $ IHole fc str
+  mapATTImp' o@(Implicit fc bindIfUnsolved) = f o $ pure $ Implicit fc bindIfUnsolved
+  mapATTImp' o@(IWithUnambigNames fc xs t) = f o $ IWithUnambigNames fc xs <$> mapATTImp' t
+
+public export %inline
+mapATTImp : Monad m => (m TTImp -> m TTImp) -> TTImp -> m TTImp
+mapATTImp = mapATTImp' . const
+
+public export %inline
+mapMTTImp' : Monad m => ((original, mapped : TTImp) -> m TTImp) -> TTImp -> m TTImp
+mapMTTImp' = mapATTImp' . (=<<) .: apply
+
+public export %inline
+mapMTTImp : Monad m => (TTImp -> m TTImp) -> TTImp -> m TTImp
+mapMTTImp = mapATTImp . (=<<)
