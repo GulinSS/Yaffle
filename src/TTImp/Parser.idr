@@ -122,6 +122,8 @@ fnDirectOpt
          pure (GlobalHint False)
   <|> do pragma "inline"
          pure Inline
+  <|> do pragma "unsafe"
+         pure Unsafe
   <|> do pragma "noinline"
          pure NoInline
   <|> do pragma "deprecate"
