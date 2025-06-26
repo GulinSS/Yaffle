@@ -328,7 +328,7 @@ parameters {auto c : Ref Ctxt Defs}
   quoteStrategy : Strategy -> Env Term vars -> Value f vars -> Core (Term vars)
   quoteStrategy s env val
       = do q <- newRef QVar 100
-           quoteGen None env val s
+           logDepth $ quoteGen None env val s
 
   export
   quoteNFall : Env Term vars -> Value f vars -> Core (Term vars)
