@@ -234,8 +234,8 @@ findSCcall g eqs pats fc fn_in arity args
            aSmaller <- resolved (gamma defs) (NS builtinNS (UN $ Basic "assert_smaller"))
            logC "totality.termination.sizechange" 10 $
                do under <- traverse (\ (n, t) =>
-                              pure (n, !(toFullNames !(quoteNF [<] t)))) pats
-                  targs <- traverse (\t => toFullNames !(quoteNF [<] t)) args
+                              pure (n, !(toFullNames !(quote [<] t)))) pats
+                  targs <- traverse (\t => toFullNames !(quote [<] t)) args
                   pure ("Under " ++ show under ++ "\n" ++ "Args " ++ show targs)
            if fn == NS builtinNS (UN $ Basic "assert_total")
               then pure []
